@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{% csrf_token %}">
+    <title>Chat con Django</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 2em;
+            color: #333;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 600px;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .chat-box {
+            width: 100%;
+            height: 400px;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            font-size: 1.1em;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .chat-box p {
+            margin: 10px 0;
+        }
+
+        .chat-box b {
+            color: #4CAF50; /* Colore per il testo "Tu" */
+        }
+
+        .input-container {
+            padding: 15px;
+            background-color: #fff;
+        }
+
+        .input-box {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.2em;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            resize: none;
+            background-color: #fafafa;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            border-radius: 5px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .file-input-container {
+            padding: 15px;
+            background-color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #ddd;
+        }
+
+        .file-input-container input[type="file"] {
+            padding: 5px;
+            font-size: 1em;
+            background-color: #fafafa;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .file-input-container button {
+            background-color: #008CBA;
+            padding: 10px;
+            font-size: 1.1em;
+            width: auto;
+        }
+
+        .file-input-container button:hover {
+            background-color: #007B8C;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat con il Backend</h1>
+    
+    <div class="chat-container">
+        <div class="chat-box" id="chatBox"></div>
+
+        <div class="input-container">
+            <textarea id="message" class="input-box" placeholder="Scrivi il tuo messaggio..."></textarea>
+            <button onclick="sendMessage()">Invia Messaggio</button>
+        </div>
+
+        <div class="file-input-container">
+            <input type="file" id="fileInput" />
+            <button onclick="uploadFile()">Carica File</button>
+        </div>
+    </div>
+
+    <script>
+        // Funzione per aggiornare la chat nella pagina
+        function updateChat(message, response, isTemporary = false) {
+            const chatBox = document.getElementById('chatBox');
+
+            if (isTemporary) {
+                // Aggiungi il messaggio dell'utente
+                chatBox.innerHTML += `<p><b>Tu:</b> ${message}</p>`;
+                // Aggiungi il messaggio temporaneo di attesa
+                chatBox.innerHTML += `<p class="temporary"><b>Risposta:</b> ${response}</p>`;
+            } else {
+                // Trova il messaggio temporaneo e sostituiscilo con la risposta del server
+                const lastTemporary = chatBox.querySelector('.temporary');
+                if (lastTemporary) {
+                    lastTemporary.innerHTML = `<b>Risposta:</b> ${response}`;
+                    lastTemporary.classList.remove('temporary'); // Rimuovi la classe "temporary" per evitare sostituzioni future
+                }
+            }
+
+            // Scorri automaticamente fino in fondo alla chat
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Funzione per inviare il messaggio e ottenere la risposta
+        function sendMessage() {
+            const message = document.getElementById('message').value;
+
+            if (message.trim() !== '') {
+                // Mostra il messaggio dell'utente e il placeholder "in attesa della risposta"
+                updateChat(message, 'In attesa della risposta...', true);
+
+                document.getElementById('message').value = ''; // Pulisci il campo
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+                fetch('/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: new URLSearchParams({
+                        'message': message,
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message && data.response) {
+                        // Sostituisci il messaggio temporaneo con la risposta effettiva
+                        updateChat(data.message, data.response, false);
+                    } else {
+                        console.error('Errore: dati non validi ricevuti.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Errore:', error);
+                });
+            }
+        }
+
+
+
+
+        // Funzione per caricare il file
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('File caricato con successo: ' + data.file_url);
+            })
+            .catch(error => {
+                console.error('Errore nel caricamento del file:', error);
+            });
+        }
+    </script>
+</body>
+</html>
